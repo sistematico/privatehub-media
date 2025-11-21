@@ -1,0 +1,24 @@
+[Unit]
+Description=PrivateHub Media Server (MediaSoup WebRTC SFU)
+After=network.target
+
+[Service]
+Type=simple
+User=nginx
+WorkingDirectory=/var/www/privatehub-media
+ExecStart=/usr/bin/node --import tsx src/server.ts
+Restart=always
+RestartSec=10
+Environment=NODE_ENV=production
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=privatehub-media
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

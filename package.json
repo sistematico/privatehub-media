@@ -1,0 +1,29 @@
+{
+  "name": "privatehub-media",
+  "version": "1.0.0",
+  "description": "MediaSoup WebRTC media server for PrivateHub live streaming",
+  "keywords": [
+    "mediasoup",
+    "webrtc",
+    "streaming",
+    "sfu"
+  ],
+  "license": "MIT",
+  "author": "Lucas Salies Brum <sistematico@gmail.com>",
+  "type": "module",
+  "main": "src/server.ts",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "NODE_ENV=production node --import tsx src/server.ts",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "mediasoup": "^3.19.11",
+    "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "tsx": "^4.20.6",
+    "typescript": "^5"
+  }
+}
