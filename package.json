@@ -19,7 +19,9 @@
   },
   "dependencies": {
     "mediasoup": "^3.19.11",
-    "socket.io": "^4.8.1"
+    "mediasoup-client": "^3.18.1",
+    "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.1"
   },
   "devDependencies": {
     "@types/node": "^20",

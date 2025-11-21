@@ -1,0 +1,37 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Copy site via SSH with Password
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          password: ${{ secrets.SSH_PASS }}
+          port: ${{ secrets.SSH_PORT }}
+          source: "."
+          target: ${{ secrets.PROJECT_PATH }}
+
+  build:
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install and build Next.js
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          password: ${{ secrets.SSH_PASS }}
+          port: ${{ secrets.SSH_PORT }}
+          script: |
+            cd ${{ secrets.PROJECT_PATH }}
+            bash scripts/deploy.sh
