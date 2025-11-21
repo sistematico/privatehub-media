@@ -67,7 +67,7 @@ io.on('connection', (socket) => {
   socket.on('createTransport', async (callback) => {
     try {
       const transport = await router.createWebRtcTransport({
-        listenIps: [{ ip: '0.0.0.0', announcedIp: 'SEU_IP_PUBLICO' }], // Substitua pelo seu IP público
+        listenIps: [{ ip: '0.0.0.0', announcedIp: 'sfu.privatehub.com.br' }], // Substitua pelo seu IP público
         enableUdp: true,
         enableTcp: true,
         preferUdp: true,

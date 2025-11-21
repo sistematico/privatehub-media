@@ -50,8 +50,8 @@ const mediaCodecs = [
 ] as types.RtpCodecCapability[];
 
 // Server configuration
-const MEDIA_SERVER_PORT = process.env.MEDIA_SERVER_PORT ? parseInt(process.env.MEDIA_SERVER_PORT, 10) : 3001;
-const MEDIASOUP_ANNOUNCED_IP = process.env.MEDIASOUP_ANNOUNCED_IP || "127.0.0.1";
+const MEDIA_SERVER_PORT = process.env.MEDIA_SERVER_PORT ? parseInt(process.env.MEDIA_SERVER_PORT, 10) : 5050;
+const MEDIASOUP_ANNOUNCED_IP = process.env.MEDIASOUP_ANNOUNCED_IP || "sfu.privatehub.com.br";
 
 // Initialize MediaSoup Worker
 async function createWorker() {

@@ -14,6 +14,7 @@ cd $TMPDIR || exit 1
 git clean -fxd -e .env
 cp .env .env.production
 
+MEDIASOUP_SKIP_WORKER_PREBUILT_DOWNLOAD="true" npm install mediasoup@3
 npm install
 #bun run location
 #bun run build || exit 1
