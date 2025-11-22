@@ -124,7 +124,7 @@ async function createWebRtcTransport(liveId: number, socketId: string, direction
     listenIps: [
       {
         ip: "0.0.0.0",
-        announcedIp: MEDIASOUP_ANNOUNCED_IP,
+        announcedIp: "127.0.0.1",
       },
     ],
     enableUdp: true,
