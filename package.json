@@ -14,7 +14,8 @@
   "main": "src/server.ts",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "start": "NODE_ENV=production node --import tsx src/server.ts",
+    "start:new": "NODE_ENV=production node --import tsx src/server.ts",
+    "start": "NODE_ENV=production node src/app.js",
     "build": "tsc"
   },
   "dependencies": {
