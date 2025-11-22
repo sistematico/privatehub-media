@@ -1,77 +1,51 @@
-# PrivateHub Media Server
+# PrivateHub Media Server (MediaSoup)
 
-Servidor MediaSoup standalone para streaming WebRTC do PrivateHub.
+Servidor WebRTC SFU (Selective Forwarding Unit) para streaming de vídeo em tempo real usando MediaSoup.
 
-## 🎯 Sobre
+## 🚀 Configuração de Produção
 
-Este é um servidor **separado** do aplicativo principal PrivateHub, dedicado exclusivamente ao processamento de streaming de vídeo em tempo real usando MediaSoup (SFU - Selective Forwarding Unit).
+### Endereços Configurados
 
-## 🏗️ Arquitetura
-
-```
-PrivateHub (Main App)          PrivateHub Media Server
-Port: 3000                     Port: 3001
-┌──────────────┐              ┌──────────────┐
-│  Next.js     │              │  MediaSoup   │
-│  Socket.IO   │◄────────────►│  Socket.IO   │
-│  Database    │              │  WebRTC SFU  │
-└──────────────┘              └──────────────┘
-      ▲                              ▲
-      │                              │
-      └──────────────────────────────┘
-              Browsers/Clients
-```
-
-## 📦 Instalação
-
-```bash
-# Clone ou navegue para o diretório
-cd privatehub-media
-
-# Instale as dependências
-npm install
-
-# Configure as variáveis de ambiente
-cp .env.example .env
-# Edite .env com suas configurações
-```
-
-## ⚙️ Configuração
+- **Porta do servidor**: `5050`
+- **Domínio público**: `sfu.privatehub.com.br`
+- **Proxy reverso**: Nginx configurado para `sfu.privatehub.com.br` → `localhost:5050`
 
 ### Variáveis de Ambiente
 
+O servidor está configurado no arquivo `.env`:
+
 ```env
-# Porta do servidor
-MEDIA_SERVER_PORT=3001
+# Server Configuration
+MEDIA_SERVER_PORT=5050
 
-# IP público do servidor (importante para produção)
-MEDIASOUP_ANNOUNCED_IP=seu-ip-ou-dominio.com
+# MediaSoup Configuration
+MEDIASOUP_ANNOUNCED_IP=sfu.privatehub.com.br
 
-# Range de portas RTC (certifique-se de abrir no firewall)
+# RTC Port Range (certifique-se de que essas portas estão abertas no firewall)
 MEDIASOUP_RTC_MIN_PORT=40000
 MEDIASOUP_RTC_MAX_PORT=49999
 
-# Origens CORS permitidas
+# CORS Origins (separados por vírgula)
 CORS_ORIGIN=https://privatehub.com.br,https://www.privatehub.com.br
 
-# Ambiente
+# Node Environment
 NODE_ENV=production
 ```
 
-### Firewall
+### Portas Necessárias no Firewall
 
-**IMPORTANTE**: Abra as portas necessárias no firewall:
+Certifique-se de que as seguintes portas estão abertas:
+
+- **5050/tcp**: Socket.IO (pode ser interna se usando proxy reverso)
+- **40000-49999/udp**: Portas RTC para tráfego WebRTC (OBRIGATÓRIO)
+
+## 🔧 Instalação
 
 ```bash
-# Porta do servidor Socket.IO
-sudo ufw allow 3001/tcp
-
-# Range de portas RTC para MediaSoup
-sudo ufw allow 40000:49999/udp
-sudo ufw allow 40000:49999/tcp
+npm install
 ```
 
-## 🚀 Uso
+## 🏃 Execução
 
 ### Desenvolvimento
 
@@ -85,179 +59,99 @@ npm run dev
 npm start
 ```
 
-### Com systemd (Recomendado para Produção)
+## 🌐 Configuração do Nginx (Proxy Reverso)
 
-Crie `/etc/systemd/system/privatehub-media.service`:
+Exemplo de configuração para `sfu.privatehub.com.br`:
 
-```ini
-[Unit]
-Description=PrivateHub Media Server (MediaSoup)
-After=network.target
+```nginx
+server {
+    listen 80;
+    server_name sfu.privatehub.com.br;
+    
+    # Redirecionar para HTTPS
+    return 301 https://$server_name$request_uri;
+}
 
-[Service]
-Type=simple
-User=nginx
-WorkingDirectory=/var/www/privatehub-media
-ExecStart=/usr/bin/node --import tsx src/server.ts
-Restart=always
-RestartSec=10
-Environment=NODE_ENV=production
-
-# Logging
-StandardOutput=journal
-StandardError=journal
-SyslogIdentifier=privatehub-media
-
-[Install]
-WantedBy=multi-user.target
+server {
+    listen 443 ssl http2;
+    server_name sfu.privatehub.com.br;
+    
+    # Certificados SSL
+    ssl_certificate /etc/letsencrypt/live/sfu.privatehub.com.br/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/sfu.privatehub.com.br/privkey.pem;
+    
+    # Configurações SSL
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers on;
+    ssl_ciphers ECDHE-RSA-AES256-GCM-SHA512:DHE-RSA-AES256-GCM-SHA512;
+    
+    location / {
+        proxy_pass http://localhost:5050;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # Timeouts para Socket.IO
+        proxy_connect_timeout 7d;
+        proxy_send_timeout 7d;
+        proxy_read_timeout 7d;
+    }
+}
 ```
 
-Habilite e inicie:
+## 📡 Integração com PrivateHub
 
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable privatehub-media
-sudo systemctl start privatehub-media
-sudo systemctl status privatehub-media
-```
-
-## 🔗 Integração com PrivateHub Principal
-
-O servidor principal do PrivateHub deve configurar o cliente Socket.IO para conectar ao servidor de mídia:
+O cliente no PrivateHub (`src/components/live/BroadcastStreamMediaSoup.tsx`) já está configurado para usar:
 
 ```typescript
-// No frontend (PrivateHub)
-import { io } from "socket.io-client";
-
-const mediaSocket = io("http://localhost:3001", {
-  transports: ["websocket"],
-});
-
-// Eventos disponíveis:
-// - mediasoup:getRtpCapabilities
-// - mediasoup:createProducerTransport
-// - mediasoup:createConsumerTransport
-// - mediasoup:produce
-// - mediasoup:consume
-// etc.
+const MEDIA_SERVER_URL = process.env.NEXT_PUBLIC_MEDIA_SERVER_URL || "https://sfu.privatehub.com.br";
 ```
 
-## 📡 Eventos Socket.IO
+No arquivo `.env.production` do PrivateHub:
 
-### Cliente → Servidor
-
-- `mediasoup:getRtpCapabilities` - Obter capacidades RTP do router
-- `mediasoup:createProducerTransport` - Criar transport para broadcaster
-- `mediasoup:createConsumerTransport` - Criar transport para viewer
-- `mediasoup:connectProducerTransport` - Conectar transport de broadcaster
-- `mediasoup:connectConsumerTransport` - Conectar transport de viewer
-- `mediasoup:produce` - Iniciar produção de mídia (broadcaster)
-- `mediasoup:consume` - Consumir mídia (viewer)
-- `mediasoup:getProducers` - Obter lista de producers disponíveis
-- `mediasoup:joinLive` - Entrar em uma sala de live
-- `mediasoup:leaveLive` - Sair de uma sala de live
-
-### Servidor → Cliente
-
-- `mediasoup:newProducer` - Notifica sobre novo producer disponível
-- `mediasoup:broadcasterLeft` - Broadcaster encerrou transmissão
-
-## 🛠️ Requisitos do Sistema
-
-### Mínimo
-
-- **Node.js**: >= 18.x
-- **Python**: 3.x (para compilação do MediaSoup)
-- **Compilador C++**: GCC/Clang
-- **Make**: Build tools
-
-### Instalação de Dependências (Arch Linux)
-
-```bash
-sudo pacman -S base-devel python3 nodejs npm
+```env
+NEXT_PUBLIC_MEDIA_SERVER_URL=https://sfu.privatehub.com.br
 ```
 
-### Instalação de Dependências (Ubuntu/Debian)
+## 🔍 Logs e Monitoramento
 
-```bash
-sudo apt-get install build-essential python3 nodejs npm
-```
+O servidor exibe logs detalhados no console:
 
-## 📊 Monitoramento
+- Configuração ao iniciar (porta, IP anunciado, CORS)
+- Conexões de clientes
+- Criação de routers/transports/producers/consumers
+- Erros e desconexões
 
-### Logs
+## 🐛 Troubleshooting
 
-```bash
-# Systemd
-sudo journalctl -u privatehub-media -f
+### Erro: "Cannot consume" ou "Failed to connect"
 
-# Direto
-npm start
-```
+- Verifique se as portas UDP **40000-49999** estão abertas no firewall
+- Confirme que `MEDIASOUP_ANNOUNCED_IP` está configurado com o IP/domínio público correto
 
-### Métricas
+### Erro de CORS
 
-O servidor loga automaticamente:
-- Criação/encerramento de workers
-- Routers criados/fechados por live
-- Transports criados
-- Producers/Consumers ativos
-- Conexões/desconexões de clientes
+- Verifique se o domínio do PrivateHub está em `CORS_ORIGIN`
+- Certifique-se de que não há espaços extras na lista de domínios
 
-## 🔧 Troubleshooting
+### Socket.IO não conecta
 
-### Erro: "mediasoup-worker ENOENT"
+- Verifique se o Nginx está corretamente configurado para proxy WebSocket
+- Confirme que o certificado SSL está válido
+- Teste a conexão: `curl https://sfu.privatehub.com.br`
 
-O binário do MediaSoup não foi compilado:
+## 📚 Documentação
 
-```bash
-npm rebuild mediasoup --build-from-source
-```
+- [MediaSoup Documentation](https://mediasoup.org/)
+- [Socket.IO Documentation](https://socket.io/docs/v4/)
 
-### Erro: "python: command not found"
+## 🔐 Segurança
 
-```bash
-sudo ln -s /usr/bin/python3 /usr/bin/python
-```
-
-### Viewers não conseguem conectar
-
-1. Verifique se as portas RTC estão abertas no firewall
-2. Confirme que `MEDIASOUP_ANNOUNCED_IP` está configurado com o IP/domínio público
-3. Verifique logs de ICE connection no browser console
-
-### Performance
-
-Para alta carga, considere:
-- Múltiplos workers MediaSoup
-- Load balancer (nginx/haproxy)
-- Servidores dedicados por região geográfica
-
-## 📝 Desenvolvimento
-
-### Estrutura
-
-```
-privatehub-media/
-├── src/
-│   └── server.ts          # Servidor principal
-├── package.json           # Dependências
-├── tsconfig.json          # Config TypeScript
-├── .env.example           # Exemplo de variáveis
-└── README.md             # Este arquivo
-```
-
-### Debugging
-
-```bash
-# Com logs detalhados do MediaSoup
-DEBUG=mediasoup* npm run dev
-```
-
-## 📄 Licença
-
-Mesma licença do projeto PrivateHub principal.
-
-## 🤝 Contribuindo
-
-Este servidor faz parte do ecossistema PrivateHub. Para contribuir, consulte o repositório principal.
+- Sempre use HTTPS em produção
+- Mantenha o firewall configurado corretamente
+- Limite CORS apenas aos domínios necessários
+- Monitore logs para atividades suspeitas

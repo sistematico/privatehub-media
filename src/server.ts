@@ -4,6 +4,7 @@
  * Roda em paralelo com o servidor principal (Bun)
  */
 
+import "dotenv/config";
 import { Server } from "socket.io";
 import { createServer } from "node:http";
 import * as mediasoup from "mediasoup";
@@ -49,9 +50,22 @@ const mediaCodecs = [
   },
 ] as types.RtpCodecCapability[];
 
-// Server configuration
+// Server configuration from environment variables
 const MEDIA_SERVER_PORT = process.env.MEDIA_SERVER_PORT ? parseInt(process.env.MEDIA_SERVER_PORT, 10) : 5050;
-const MEDIASOUP_ANNOUNCED_IP = process.env.MEDIASOUP_ANNOUNCED_IP || "sfu.privatehub.com.br";
+const MEDIASOUP_ANNOUNCED_IP = process.env.MEDIASOUP_ANNOUNCED_IP || "127.0.0.1";
+const RTC_MIN_PORT = process.env.MEDIASOUP_RTC_MIN_PORT ? parseInt(process.env.MEDIASOUP_RTC_MIN_PORT, 10) : 40000;
+const RTC_MAX_PORT = process.env.MEDIASOUP_RTC_MAX_PORT ? parseInt(process.env.MEDIASOUP_RTC_MAX_PORT, 10) : 49999;
+
+// CORS origins - support comma-separated list
+const CORS_ORIGIN = process.env.CORS_ORIGIN 
+  ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim())
+  : ["http://localhost:3000"];
+
+console.log("[Config] Media Server Port:", MEDIA_SERVER_PORT);
+console.log("[Config] Announced IP:", MEDIASOUP_ANNOUNCED_IP);
+console.log("[Config] RTC Port Range:", `${RTC_MIN_PORT}-${RTC_MAX_PORT}`);
+console.log("[Config] CORS Origins:", CORS_ORIGIN);
+console.log("[Config] Environment:", process.env.NODE_ENV || "development");
 
 // Initialize MediaSoup Worker
 async function createWorker() {
@@ -60,8 +74,8 @@ async function createWorker() {
   worker = await mediasoup.createWorker({
     logLevel: "warn",
     logTags: ["info", "ice", "dtls", "rtp", "srtp", "rtcp"],
-    rtcMinPort: 40000,
-    rtcMaxPort: 49999,
+    rtcMinPort: RTC_MIN_PORT,
+    rtcMaxPort: RTC_MAX_PORT,
   });
 
   console.log(`[MediaSoup] Worker created with PID: ${worker.pid}`);
@@ -260,9 +274,7 @@ async function startMediaServer() {
   const httpServer = createServer();
   const io = new Server(httpServer, {
     cors: {
-      origin: process.env.NODE_ENV === "production" 
-        ? ["https://privatehub.com.br", "https://www.privatehub.com.br"]
-        : ["http://localhost:3000"],
+      origin: CORS_ORIGIN,
       credentials: true,
     },
   });
@@ -391,6 +403,7 @@ async function startMediaServer() {
   httpServer.listen(MEDIA_SERVER_PORT, () => {
     console.log(`[Media Server] MediaSoup server running on port ${MEDIA_SERVER_PORT}`);
     console.log(`[Media Server] Announced IP: ${MEDIASOUP_ANNOUNCED_IP}`);
+    console.log(`[Media Server] Ready to accept connections`);
   });
 }
 
