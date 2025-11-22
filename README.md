@@ -172,3 +172,18 @@ curl -i http://localhost:5050/test
 Abra no navegador: http://localhost:5050/test — a página mostrará "Servidor ativo" e a hora do servidor.
 
 O arquivo estático usado por esse endpoint está em `public/test.html` — você pode editá-lo sem recompilar o servidor.
+
+### Teste de webcam com mediasoup
+
+Agora `public/test.html` funciona como um teste real: ela conecta ao Media Server via Socket.IO e usa `mediasoup-client` para capturar sua webcam, criar um producer e tentar consumir produtores existentes na mesma "live".
+
+Como usar:
+
+- Abra: https://sfu.privatehub.com.br/test (ou http://localhost:5050/test em desenvolvimento)
+- Clique em "Iniciar teste" e permita acesso à webcam quando solicitado
+- A página irá produzir um stream para o servidor e também tentará consumir produtores presentes no mesmo live (você pode mudar a configuração de `live` no seletor)
+
+Dicas:
+
+- Abra o console do navegador (F12) para ver logs e mensagens de erro.
+- Se o navegador bloquear a câmera, verifique permissões e o acesso via HTTPS (requerido em produção).

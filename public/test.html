@@ -14,10 +14,174 @@
   </head>
   <body>
     <main>
-      <h1>Servidor ativo ✅</h1>
-      <p>Esta é uma página de teste estática para o Media Server.</p>
-      <p style="margin-top:8px;font-size:0.9rem;color:#888">Hora do servidor (renderizada pelo arquivo estático): <!-- timestamp not dynamic --> </p>
-      <p style="margin-top:12px;font-size:0.9rem;color:#666">Acesse <code>/test</code> ou <code>/health</code> na porta do servidor para verificar.</p>
+      <h1>Teste do Media Server (mediasoup + webcam) ✅</h1>
+      <p>Esta página cria uma conexão com o Media Server via Socket.IO e usa <em>mediasoup-client</em> para enviar (produce) a webcam e também consumir produtores presentes no mesmo "live".</p>
+
+      <div style="display:flex;gap:18px;align-items:flex-start;margin-top:18px;flex-wrap:wrap;">
+        <section style="flex:1;min-width:280px">
+          <h3>Local (webcam)</h3>
+          <video id="localVideo" autoplay muted playsinline style="width:100%;background:#000;border-radius:6px"></video>
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button id="btn-start">Iniciar teste</button>
+            <select id="sel-live"><option value="1">Live 1</option><option value="2">Live 2</option></select>
+            <label style="font-size:0.9rem;color:#666;align-self:center">Use a webcam e teste o SFU</label>
+          </div>
+        </section>
+
+        <section style="flex:1;min-width:280px">
+          <h3>Remoto (consumido)</h3>
+          <div id="remoteList" style="display:flex;flex-direction:column;gap:8px"></div>
+        </section>
+      </div>
+
+      <div style="margin-top:14px;color:#666;font-size:0.95rem">Nota: será solicitado acesso à webcam; abra o console do navegador (F12) para ver logs/erros.</div>
     </main>
+
+    <!-- Scripts: socket.io client served from the same host (/socket.io/socket.io.js) -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script type="module">
+      // Use a compatible mediasoup-client build via unpkg as an ES module
+      import * as mediasoupClient from 'https://unpkg.com/mediasoup-client@3.6.36?module';
+
+      const btnStart = document.getElementById('btn-start');
+      const selLive = document.getElementById('sel-live');
+      const localVideo = document.getElementById('localVideo');
+      const remoteList = document.getElementById('remoteList');
+
+      let socket;
+      let device;
+      let producerTransport;
+      let consumerTransport;
+      let producer;
+
+      function emitAsync(event, payload = {}) {
+        return new Promise((resolve) => {
+          socket.emit(event, payload, (data) => resolve(data));
+        });
+      }
+
+      async function startTest() {
+        btnStart.disabled = true;
+
+        socket = io(); // same origin
+
+        socket.on('connect', () => console.log('Socket connected', socket.id));
+        socket.on('disconnect', () => console.log('Socket disconnected'));
+
+        const liveId = Number(selLive.value || 1);
+
+        // 1) Get RTP capabilities from server
+        const { rtpCapabilities } = await emitAsync('mediasoup:getRtpCapabilities', { liveId }) || {};
+        if (!rtpCapabilities) {
+          console.error('Failed to receive router rtpCapabilities from server');
+          btnStart.disabled = false;
+          return;
+        }
+
+        // 2) Create mediasoup device and load capabilities
+        device = new mediasoupClient.Device();
+        await device.load({ routerRtpCapabilities: rtpCapabilities });
+        console.log('Device loaded', device);
+
+        // 3) Create producer transport on server
+        const produceTransportParams = await emitAsync('mediasoup:createProducerTransport', { liveId });
+        producerTransport = device.createSendTransport(produceTransportParams);
+
+        // attach events
+        producerTransport.on('connect', async ({ dtlsParameters }, callback, errback) => {
+          try {
+            await emitAsync('mediasoup:connectProducerTransport', { transportId: producerTransport.id, dtlsParameters });
+            callback();
+          } catch (e) {
+            console.error('connectProducerTransport error', e);
+            errback(e);
+          }
+        });
+
+        producerTransport.on('produce', async ({ kind, rtpParameters }, callback, errback) => {
+          try {
+            const { id } = await emitAsync('mediasoup:produce', { liveId, kind, rtpParameters });
+            callback({ id });
+          } catch (e) {
+            console.error('produce error', e);
+            errback(e);
+          }
+        });
+
+        // 4) getUserMedia and produce
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        localVideo.srcObject = stream;
+
+        producer = await producerTransport.produce({ track: stream.getVideoTracks()[0] });
+        console.log('Produced:', producer.id);
+
+        // 5) Create consumer transport on server
+        const consumerTransportParams = await emitAsync('mediasoup:createConsumerTransport', { liveId });
+        consumerTransport = device.createRecvTransport(consumerTransportParams);
+
+        consumerTransport.on('connect', async ({ dtlsParameters }, callback, errback) => {
+          try {
+            await emitAsync('mediasoup:connectConsumerTransport', { transportId: consumerTransport.id, dtlsParameters });
+            callback();
+          } catch (e) {
+            console.error('connectConsumerTransport error', e);
+            errback(e);
+          }
+        });
+
+        // 6) Join the live room and retrieve producers
+        socket.emit('mediasoup:joinLive', { liveId });
+
+        // fetch producers list
+        const { producers } = await emitAsync('mediasoup:getProducers', { liveId }) || { producers: [] };
+        console.log('Producers on live', producers);
+
+        // Attempt to consume each producer (including our own) — the server will only allow valid consumes
+        for (const prodId of producers) {
+          try {
+            // The server requires the device rtpCapabilities
+            const consumeResult = await emitAsync('mediasoup:consume', { liveId, producerId: prodId, rtpCapabilities: device.rtpCapabilities });
+
+            if (consumeResult?.error) {
+              console.warn('Cannot consume', consumeResult.error);
+              continue;
+            }
+
+            const { id, kind, rtpParameters } = consumeResult;
+
+            // create consumer with received parameters
+            const consumer = await consumerTransport.consume({ id, producerId: prodId, kind, rtpParameters });
+
+            const remoteStream = new MediaStream();
+            remoteStream.addTrack(consumer.track);
+
+            const remoteVideo = document.createElement('video');
+            remoteVideo.autoplay = true;
+            remoteVideo.playsInline = true;
+            remoteVideo.controls = true;
+            remoteVideo.style.width = '100%';
+            remoteVideo.srcObject = remoteStream;
+
+            const container = document.createElement('div');
+            container.style.border = '1px solid #eee';
+            container.style.padding = '6px';
+            container.style.borderRadius = '8px';
+            container.innerHTML = `<div style="font-size:0.9rem;color:#666;margin-bottom:6px">Producer: <code>${prodId}</code></div>`;
+            container.appendChild(remoteVideo);
+            remoteList.appendChild(container);
+
+            // resume to start
+            await consumer.resume();
+
+          } catch (err) {
+            console.error('consume failed for', prodId, err);
+          }
+        }
+
+        console.log('Test started — producing and consuming (if producers were found)');
+      }
+
+      btnStart.addEventListener('click', () => startTest().catch(e => { console.error(e); btnStart.disabled = false; }));
+    </script>
   </body>
 </html>
