@@ -155,3 +155,20 @@ O servidor exibe logs detalhados no console:
 - Mantenha o firewall configurado corretamente
 - Limite CORS apenas aos domínios necessários
 - Monitore logs para atividades suspeitas
+
+## ✅ Página de teste / health check
+
+Para verificar rapidamente se o Media Server está ativo, existe um endpoint HTTP simples que retorna um HTML puro:
+
+- URL: GET /test  (também disponível em GET /health)
+- Porta padrão: 5050 (variável de ambiente MEDIA_SERVER_PORT)
+
+Exemplo com curl:
+
+```bash
+curl -i http://localhost:5050/test
+```
+
+Abra no navegador: http://localhost:5050/test — a página mostrará "Servidor ativo" e a hora do servidor.
+
+O arquivo estático usado por esse endpoint está em `public/test.html` — você pode editá-lo sem recompilar o servidor.

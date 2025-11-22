@@ -3,7 +3,7 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import mediasoup from 'mediasoup';
 
-const HTTP_PORT = process.env.HTTP_PORT || 3000;
+const PORT = process.env.MEDIA_SERVER_PORT || 5050;
 
 // Variáveis globais
 let worker;
@@ -67,7 +67,7 @@ io.on('connection', (socket) => {
   socket.on('createTransport', async (callback) => {
     try {
       const transport = await router.createWebRtcTransport({
-        listenIps: [{ ip: '0.0.0.0', announcedIp: 'sfu.privatehub.com.br' }], // Substitua pelo seu IP público
+        listenIps: [{ ip: '0.0.0.0', announcedIp: process.env.MEDIASOUP_ANNOUNCED_IP }], // Substitua pelo seu IP público
         enableUdp: true,
         enableTcp: true,
         preferUdp: true,
@@ -188,9 +188,9 @@ io.on('connection', (socket) => {
 const startServer = async () => {
   await initializeMediasoup();
   
-  httpServer.listen(HTTP_PORT, () => {
-    console.log(`Servidor mediasoup rodando na porta ${HTTP_PORT}`);
-    console.log(`Socket.io disponível em http://localhost:${HTTP_PORT}`);
+  httpServer.listen(PORT, () => {
+    console.log(`Servidor mediasoup rodando na porta ${PORT}`);
+    console.log(`Socket.io disponível em http://localhost:${PORT}`);
   });
 };
 

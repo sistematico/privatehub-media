@@ -7,6 +7,8 @@
 import "dotenv/config";
 import { Server } from "socket.io";
 import { createServer } from "node:http";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import * as mediasoup from "mediasoup";
 import type { types } from "mediasoup";
 
@@ -270,8 +272,31 @@ async function startMediaServer() {
   // Create MediaSoup worker
   await createWorker();
 
-  // Create HTTP server for Socket.IO
-  const httpServer = createServer();
+  // Create HTTP server for Socket.IO and a simple health/test endpoint
+  // We intentionally only intercept GET /test or /health requests here and let
+  // socket.io handle its own endpoints (e.g. /socket.io) normally.
+  const httpServer = createServer(async (req, res) => {
+    // Serve a static test HTML if present under ./public/test.html
+    if (req.method === "GET" && (req.url === "/test" || req.url === "/health")) {
+      const staticPath = join(process.cwd(), "public", "test.html");
+
+      try {
+        const file = await readFile(staticPath, "utf8");
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(file);
+        return;
+      } catch {
+        // If file doesn't exist or can't be read, fall back to a small HTML
+        // response so the endpoint still works as a health check.
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(`<!doctype html><html><head><meta charset="utf-8"><title>Health</title></head><body><h1>Servidor ativo ✅</h1><p>Test file not found — falling back.</p></body></html>`);
+        return;
+      }
+    }
+
+    // For all other requests (socket.io, upgrades, etc.) just let other
+    // listeners (Socket.IO) handle them — do not send a response here.
+  });
 
   const io = new Server(httpServer, {
     cors: {
