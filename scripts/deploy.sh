@@ -5,7 +5,7 @@ PATH="$PATH:/home/lucas/.bun/bin"
 NAME="privatehub-media"
 TMPDIR="/tmp/$NAME"
 WORKDIR="/var/www/$NAME"
-SERVICE="${NAME}.service"
+SERVICE="${NAME}soup.service"
 
 #[ -e $TMPDIR ] && rm -rf $TMPDIR
 #[ -e $WORKDIR ] && cp -af $WORKDIR $TMPDIR
