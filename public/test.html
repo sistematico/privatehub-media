@@ -40,8 +40,9 @@
     <!-- Scripts: socket.io client served from the same host (/socket.io/socket.io.js) -->
     <script src="/socket.io/socket.io.js"></script>
     <script type="module">
-      // Use a compatible mediasoup-client build via unpkg as an ES module
-      import * as mediasoupClient from 'https://unpkg.com/mediasoup-client@3.6.36?module';
+      // Use a browser-friendly ESM build (esm.sh) — this avoids CommonJS 'exports' errors
+        // Use a browser-optimized ESM CDN build from Skypack (recommended for direct browser imports)
+        import * as mediasoupClient from 'https://cdn.skypack.dev/mediasoup-client@3.6.36';
 
       const btnStart = document.getElementById('btn-start');
       const selLive = document.getElementById('sel-live');
