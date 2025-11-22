@@ -272,12 +272,20 @@ async function startMediaServer() {
 
   // Create HTTP server for Socket.IO
   const httpServer = createServer();
+
   const io = new Server(httpServer, {
     cors: {
-      origin: CORS_ORIGIN,
-      credentials: true,
-    },
+      origin: ["https://privatehub.com.br","https://www.privatehub.com.br","https://sfu.privatehub.com.br","http://localhost:3000"],
+      methods: ["GET", "POST", "OPTIONS"]
+    }
   });
+
+  // const io = new Server(httpServer, {
+  //   cors: {
+  //     origin: CORS_ORIGIN,
+  //     credentials: true,
+  //   },
+  // });
 
   io.on("connection", (socket) => {
     console.log(`[Media Server] Client connected: ${socket.id}`);
